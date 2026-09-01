@@ -13,22 +13,27 @@ export interface QRPreviewProps {
   primaryColor?: string
   /** Optional logo image URL rendered in the centre of the QR */
   logoUrl?: string
-  /** Base domain — falls back to NEXT_PUBLIC_APP_URL or localhost */
+  /** Base domain — falls back to NEXT_PUBLIC_APP_URL or production fallback */
   domain?: string
   className?: string
   /** Pixel size of the visible preview SVG */
   previewSize?: number
 }
 
-const DEFAULT_DOMAIN = 'http://localhost:3000'
+const DEFAULT_DOMAIN = 'https://dynamic-qr-gilt.vercel.app'
 
 /**
- * Renders a dynamic QR code whose encoded value points to the redirect
- * endpoint `/r/[slug]`.  Provides two download actions:
- *   - **PNG (Alta Res)** — exports a 512 × 512 canvas raster
- *   - **SVG (Imprenta Vectorial)** — exports a vector SVG suitable
- *     for professional printing
+ * Normaliza cualquier dominio para asegurar que contenga el protocolo HTTPS obligatorio
+ * para la lectura correcta por parte de cámaras nativas en dispositivos móviles.
  */
+function normalizeDomain(rawDomain: string): string {
+  const trimmed = rawDomain.trim().replace(/\/+$|^\/+/, '')
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed
+  }
+  return `https://${trimmed}`
+}
+
 export function QRPreview({
   slug,
   qrName,
@@ -42,12 +47,12 @@ export function QRPreview({
   const svgRef = useRef<SVGSVGElement>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  const baseUrl = domain.replace(/\/+$/, '')
-  const qrValue = `${baseUrl}/r/${slug}`
+  // Formateo estricto del dominio con protocolo https://
+  const sanitizedDomain = normalizeDomain(domain)
+  const qrValue = `${sanitizedDomain}/r/${slug.trim()}`
 
   // High-resolution canvas only used for PNG export (kept off-screen).
   const downloadSize = 512
-
   const logoDims = Math.round(previewSize * 0.15)
 
   // -- Download helpers ----------------------------------------------------
@@ -90,9 +95,7 @@ export function QRPreview({
     <div
       className={`relative flex flex-col items-center gap-4 ${className ?? ''}`}
     >
-      {/* ----------------------------------------------------------------- */}
-      {/*  Hidden high-resolution canvas used purely for PNG export         */}
-      {/* ----------------------------------------------------------------- */}
+      {/* Hidden high-resolution canvas used purely for PNG export */}
       <div
         className="absolute -left-[9999px] -top-[9999px]"
         aria-hidden="true"
@@ -118,9 +121,7 @@ export function QRPreview({
         />
       </div>
 
-      {/* ----------------------------------------------------------------- */}
-      {/*  Visible SVG preview (also used for SVG download)                  */}
-      {/* ----------------------------------------------------------------- */}
+      {/* Visible SVG preview */}
       <div className="flex items-center justify-center bg-white p-3 rounded-xl border border-neutral-200 shadow">
         <QRCodeSVG
           ref={svgRef}
@@ -145,7 +146,7 @@ export function QRPreview({
 
       {/* Redirect URL label */}
       {slug && (
-        <p className="text-xs text-neutral-500 text-center break-all px-4">
+        <p className="text-xs font-mono text-neutral-500 text-center break-all px-4">
           {qrValue}
         </p>
       )}
