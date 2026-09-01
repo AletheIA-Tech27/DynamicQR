@@ -28,7 +28,7 @@ export async function GET(
 ) {
   const { slug } = await params;
 
-  // 1. Consultar el QR por slug (Acepta 'qr_codes' o variaciones de nombre de columna)
+  // 1. Consultar el QR por slug
   const { data: qrCode, error } = await supabase
     .from("qr_codes")
     .select("*")
@@ -55,7 +55,7 @@ export async function GET(
     redirect('/qr-inactivo');
   }
 
-  // 3. Normalizar protocolo (Asegura https:// si el usuario escribió 'github.com')
+  // 3. Normalizar protocolo (Asegura https://)
   let finalDestination = rawUrl.trim();
   if (!finalDestination.startsWith("http://") && !finalDestination.startsWith("https://")) {
     finalDestination = `https://${finalDestination}`;
@@ -67,7 +67,6 @@ export async function GET(
     void recordScan(qrCode.id, userAgent);
   }
 
-  // 5. Redirigir al sitio web externo final de forma limpia
+  // 5. Redirigir al sitio web externo final
   return NextResponse.redirect(finalDestination, 307);
-}
 }
