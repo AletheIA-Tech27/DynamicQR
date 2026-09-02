@@ -4,8 +4,10 @@ import { supabase } from "@/lib/supabase";
 
 /**
  * Always run this handler dynamically — it depends on request params and DB data.
+ * Disable caching so every scan sees the freshest state from Supabase.
  */
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 /**
  * Asynchronously records a QR code scan in the `qr_analytics` table.

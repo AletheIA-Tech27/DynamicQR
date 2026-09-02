@@ -162,7 +162,7 @@ export default function DashboardPage() {
     setModalSaving(false)
   }
 
-  const handleToggleActive = async (qr: QRRecord) => {
+          const handleToggleActive = async (qr: QRRecord) => {
     const { error } = await supabase
       .from('qr_codes').update({ is_active: !qr.is_active }).eq('id', qr.id)
     if (error) setActionError(error.message)
