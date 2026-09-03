@@ -37,14 +37,19 @@ export default function DashboardPage() {
     try {
       setLoading(true)
       const { data, error } = await supabase
-        .from('qrs')
+        .from('qr_codes')
         .select('*')
         .order('created_at', { ascending: false })
 
       if (error) throw error
       setQrs(data || [])
     } catch (err) {
-      console.error('Error al obtener los códigos QR:', err)
+      // Log estructurado para depurar en Vercel Console
+      console.error('[Dashboard] Error al obtener los códigos QR:', {
+        error: err,
+        message: err instanceof Error ? err.message : String(err),
+        hint: 'Verifica que NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY estén configuradas en Vercel',
+      })
     } finally {
       setLoading(false)
     }
@@ -70,13 +75,20 @@ export default function DashboardPage() {
         .replace(/[\s_-]+/g, '-')
         .replace(/^-+|-+$/g, '') + '-' + Math.random().toString(36).substring(2, 7)
 
-      const { error } = await supabase.from('qrs').insert([
+      // Inserción en la tabla `qr_codes` con todas las columnas requeridas
+      // según el schema.sql: is_active (NOT NULL DEFAULT true) y
+      // subscription_status (NOT NULL DEFAULT 'inactive').
+      // Se incluyen explícitamente para evitar problemas de RLS/políticas.
+      const { error } = await supabase.from('qr_codes').insert([
         {
           user_id: user.id,
           name,
           slug: generatedSlug,
           target_url: targetUrl,
           primary_color: primaryColor,
+          logo_url: null,
+          is_active: true,
+          subscription_status: 'inactive',
         },
       ])
 
@@ -88,7 +100,17 @@ export default function DashboardPage() {
       setIsCreateOpen(false)
       fetchQRs()
     } catch (err) {
-      console.error('Error al crear el QR:', err)
+      // Log estructurado: tipo, mensaje, código Supabase y posibles causas.
+      const supabaseError = err as { code?: string; message?: string; details?: string }
+      console.error('[Dashboard] Error al crear el QR:', {
+        code: supabaseError?.code,
+        message: supabaseError?.message ?? (err instanceof Error ? err.message : String(err)),
+        details: supabaseError?.details,
+        hint:
+          'Causas comunes: (1) Variables NEXT_PUBLIC_SUPABASE_URL/ANON_KEY no configuradas en Vercel, ' +
+          '(2) Tabla qr_codes no existe o RLS bloquea el insert, ' +
+          '(3) Columnas is_active o subscription_status no existen en la tabla.',
+      })
     } finally {
       setCreating(false)
     }
@@ -98,11 +120,15 @@ export default function DashboardPage() {
     if (!confirm('¿Estás seguro de que deseas eliminar este código QR?')) return
 
     try {
-      const { error } = await supabase.from('qrs').delete().eq('id', id)
+      const { error } = await supabase.from('qr_codes').delete().eq('id', id)
       if (error) throw error
       setQrs(qrs.filter((qr) => qr.id !== id))
     } catch (err) {
-      console.error('Error al eliminar el QR:', err)
+      const supabaseError = err as { code?: string; message?: string }
+      console.error('[Dashboard] Error al eliminar el QR:', {
+        code: supabaseError?.code,
+        message: supabaseError?.message ?? (err instanceof Error ? err.message : String(err)),
+      })
     }
   }
 
