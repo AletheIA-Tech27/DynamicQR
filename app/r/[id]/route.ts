@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UAParser } from "ua-parser-js";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";

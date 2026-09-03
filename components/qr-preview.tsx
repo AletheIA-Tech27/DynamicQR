@@ -5,8 +5,10 @@ import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react'
 import { Download } from 'lucide-react'
 
 export interface QRPreviewProps {
-  /** The slug used in the redirect URL (e.g. "/r/my-slug") */
-  slug: string
+  /** The unique identifier or UUID used in the redirect URL (e.g. "/r/123e4567-e89b-12d3-a456-426614174000") */
+  id: string
+  /** Optional slug for fallbacks or display purposes */
+  slug?: string
   /** Human-readable name for the QR code (used in download filenames) */
   qrName?: string
   /** Foreground colour of the QR modules (default: black) */
@@ -22,10 +24,6 @@ export interface QRPreviewProps {
 
 const DEFAULT_DOMAIN = 'https://dynamic-qr-gilt.vercel.app'
 
-/**
- * Normaliza cualquier dominio para asegurar que contenga el protocolo HTTPS obligatorio
- * para la lectura correcta por parte de cámaras nativas en dispositivos móviles.
- */
 function normalizeDomain(rawDomain: string): string {
   const trimmed = rawDomain.trim().replace(/\/+$|^\/+/, '')
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
@@ -35,6 +33,7 @@ function normalizeDomain(rawDomain: string): string {
 }
 
 export function QRPreview({
+  id,
   slug,
   qrName,
   primaryColor = '#000000',
@@ -47,15 +46,13 @@ export function QRPreview({
   const svgRef = useRef<SVGSVGElement>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  // Formateo estricto del dominio con protocolo https://
+  // ✅ CORRECCIÓN CLAVE: La URL ahora apunta al ID procesable por app/r/[id]/route.ts
   const sanitizedDomain = normalizeDomain(domain)
-  const qrValue = `${sanitizedDomain}/r/${slug.trim()}`
+  const targetIdentifier = id?.trim() || slug?.trim() || ''
+  const qrValue = `${sanitizedDomain}/r/${targetIdentifier}`
 
-  // High-resolution canvas only used for PNG export (kept off-screen).
   const downloadSize = 512
   const logoDims = Math.round(previewSize * 0.15)
-
-  // -- Download helpers ----------------------------------------------------
 
   const downloadPng = () => {
     const canvas = canvasRef.current
@@ -63,7 +60,7 @@ export function QRPreview({
     try {
       const link = document.createElement('a')
       link.href = canvas.toDataURL('image/png')
-      link.download = `QR-${qrName || slug}.png`
+      link.download = `QR-${qrName || targetIdentifier}.png`
       link.click()
       setDownloadError(null)
     } catch {
@@ -82,7 +79,7 @@ export function QRPreview({
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `QR-${qrName || slug}.svg`
+      link.download = `QR-${qrName || targetIdentifier}.svg`
       link.click()
       URL.revokeObjectURL(url)
       setDownloadError(null)
@@ -95,7 +92,7 @@ export function QRPreview({
     <div
       className={`relative flex flex-col items-center gap-4 ${className ?? ''}`}
     >
-      {/* Hidden high-resolution canvas used purely for PNG export */}
+      {/* Off-screen high-res Canvas for PNG download */}
       <div
         className="absolute -left-[9999px] -top-[9999px]"
         aria-hidden="true"
@@ -144,14 +141,14 @@ export function QRPreview({
         />
       </div>
 
-      {/* Redirect URL label */}
-      {slug && (
+      {/* Label con la URL exacta que lee la cámara */}
+      {targetIdentifier && (
         <p className="text-xs font-mono text-neutral-500 text-center break-all px-4">
           {qrValue}
         </p>
       )}
 
-      {/* Download buttons */}
+      {/* Botones de descarga */}
       <div className="flex flex-col gap-2 w-full max-w-xs">
         <button
           type="button"
