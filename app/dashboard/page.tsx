@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { QRPreview } from '@/components/qr-preview'
-import { Plus, Copy, Eye, Trash2, ExternalLink, X, Check } from 'lucide-react'
+import { Plus, Copy, Eye, Trash2, ExternalLink, X, Check, LogOut, User, Loader2 } from 'lucide-react'
 
 interface QRRecord {
   id: string
@@ -16,10 +17,14 @@ interface QRRecord {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [qrs, setQrs] = useState<QRRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  
+  const [authChecked, setAuthChecked] = useState(false)
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null)
+  const [loggingOut, setLoggingOut] = useState(false)
+
   // Estados para Modal de Creación
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [name, setName] = useState('')
@@ -32,6 +37,52 @@ export default function DashboardPage() {
   const [previewQr, setPreviewQr] = useState<QRRecord | null>(null)
 
   const supabase = createClient()
+
+  // Guard de autenticación: si no hay usuario activo, redirige a /login.
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!mounted) return
+        if (!user) {
+          router.push('/login')
+          router.refresh()
+          return
+        }
+        setCurrentEmail(user.email ?? null)
+      } catch (err) {
+        console.error('[Dashboard] Error al verificar la sesión:', err)
+        if (mounted) {
+          router.push('/login')
+          router.refresh()
+        }
+      } finally {
+        if (mounted) setAuthChecked(true)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [router, supabase])
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('[Dashboard] Error al cerrar sesión:', error)
+        // Aún así redirigimos: el cliente local queda limpio aunque
+        // el endpoint de Supabase haya reportado un error de red.
+      }
+    } catch (err) {
+      console.error('[Dashboard] Excepción al cerrar sesión:', err)
+    } finally {
+      router.push('/login')
+      router.refresh()
+    }
+  }
 
   const fetchQRs = async () => {
     try {
@@ -56,8 +107,10 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    fetchQRs()
-  }, [])
+    if (authChecked) {
+      fetchQRs()
+    }
+  }, [authChecked])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -147,23 +200,52 @@ export default function DashboardPage() {
     setPreviewOpen(true)
   }
 
+  // Mientras se verifica la sesión, mostramos un spinner neutro.
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-neutral-50 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-8">
-        
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-neutral-900">Códigos QR Dinámicos</h1>
             <p className="text-sm text-neutral-500">Gestiona y redirecciona tus accesos en tiempo real.</p>
           </div>
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-medium px-4 py-2.5 rounded-xl transition-colors shadow-sm"
-          >
-            <Plus size={18} />
-            <span>Crear Código QR</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {/* User chip + logout */}
+            {currentEmail && (
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-600">
+                <User size={14} className="text-neutral-400" />
+                <span className="max-w-[180px] truncate" title={currentEmail}>
+                  {currentEmail}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              title="Cerrar sesión"
+              className="inline-flex items-center justify-center gap-2 bg-white hover:bg-neutral-50 text-neutral-700 font-medium px-3 py-2.5 rounded-xl border border-neutral-200 transition-colors disabled:opacity-50"
+            >
+              {loggingOut ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+              <span className="hidden sm:inline">Cerrar Sesión</span>
+            </button>
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-medium px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+            >
+              <Plus size={18} />
+              <span>Crear Código QR</span>
+            </button>
+          </div>
         </div>
 
         {/* Content Table / Grid */}
